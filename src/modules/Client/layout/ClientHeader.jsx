@@ -61,7 +61,7 @@ export default function ClientHeader() {
         {/* top row */}
         <div className="h-16 flex items-center gap-3">
           {/* logo + brand */}
-          <Link to="/" className="flex items-center gap-2 shrink-0">
+          <Link to="/app" className="flex items-center gap-2 shrink-0">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-brand/10">
               <Briefcase className="h-5 w-5 text-brand" />
             </span>
