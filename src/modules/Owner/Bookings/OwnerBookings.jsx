@@ -23,9 +23,50 @@ export default function OwnerBookings() {
   const [query, setQuery] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
 
   const navigate = useNavigate();
-  const goManage = (id) => navigate(`/owner/bookings/${id}`);
+
+  const openBookingModal = async (bookingId) => {
+    setModalOpen(true);
+    setModalLoading(true);
+    try {
+      const res = await api.get(`/owner/bookings/${bookingId}`);
+      setSelectedBooking(res.data);
+    } catch (e) {
+      const msg = e?.response?.data?.message || e.message || 'Failed to load booking details';
+      alert(msg);
+      setModalOpen(false);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setSelectedBooking(null);
+  };
+
+  const handleMarkComplete = async (bookingId) => {
+    if (!confirm('Mark this booking as completed? This will allow the guest to write a review.')) {
+      return;
+    }
+
+    try {
+      await api.post(`/owner/bookings/${bookingId}/complete`);
+      // Refresh the list and update modal
+      setRefreshKey(k => k + 1);
+      if (selectedBooking) {
+        setSelectedBooking(prev => ({ ...prev, status: 'completed' }));
+      }
+      alert('Booking marked as completed!');
+    } catch (e) {
+      const msg = e?.response?.data?.message || e.message || 'Failed to mark booking as completed';
+      alert(msg);
+    }
+  };
 
   const baseHeaders = { "Cache-Control": "no-cache", Pragma: "no-cache" };
   const validate = (s) => s >= 200 && s < 300;
@@ -230,7 +271,7 @@ export default function OwnerBookings() {
             ) : (
               <tbody>
                 {filteredSorted.map((b) => (
-                  <BookingRow key={b.id} booking={b} onManage={goManage} />
+                  <BookingRow key={b.id} booking={b} onView={openBookingModal} />
                 ))}
               </tbody>
             )}
@@ -247,6 +288,15 @@ export default function OwnerBookings() {
           </div>
         )}
       </div>
+
+      {modalOpen && (
+        <BookingDetailsModal
+          booking={selectedBooking}
+          loading={modalLoading}
+          onClose={closeModal}
+          onMarkComplete={handleMarkComplete}
+        />
+      )}
     </OwnerShell>
   );
 }
@@ -288,7 +338,7 @@ function StatusPill({ status }) {
   return <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ring-1 ${tone}`}>{text}</span>;
 }
 
-function BookingRow({ booking, onManage }) {
+function BookingRow({ booking, onView }) {
   const listing = booking.listing || booking.listingRef || {};
   const city = [listing.city, listing.region, listing.country].filter(Boolean).join(", ");
   const guestName = getGuestName(booking) || "Guest";
@@ -343,9 +393,9 @@ function BookingRow({ booking, onManage }) {
       <td className="px-3 py-2 text-right">
         <button
           type="button"
-          onClick={() => onManage?.(booking.id)}
+          onClick={() => onView?.(booking.id)}
           className="text-xs inline-flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-white"
-          title="View booking"
+          title="View booking details"
         >
           View <ExternalLink className="h-3.5 w-3.5" />
         </button>
@@ -418,6 +468,7 @@ function fmtBookingRange(checkIn, checkOut, { hours, nights } = {}) {
 }
 
 function getGuestName(b) {
+  if (!b) return "";
   return (
     b.guestName ||
     b.customerName ||
@@ -426,5 +477,176 @@ function getGuestName(b) {
     b.user?.name ||
     b.customer?.name ||
     ""
+  );
+}
+
+function BookingDetailsModal({ booking, loading, onClose, onMarkComplete }) {
+  if (!booking && !loading) return null;
+
+  const listing = booking?.listing || booking?.listingRef || {};
+  const user = booking?.user || {};
+  const guestName = booking ? getGuestName(booking) || "Guest" : "Guest";
+  const currency = booking?.currency || listing.currency || "PHP";
+  const amount = booking?.totalAmount || booking?.amount || 0;
+
+  const checkIn = booking?.checkIn || booking?.checkInDate;
+  const checkOut = booking?.checkOut || booking?.checkOutDate;
+  const hours = booking?.hours || booking?.durationHours;
+  const nights = booking?.nights || booking?.durationNights;
+
+  const dateLabel = fmtBookingRange(checkIn, checkOut, { hours, nights });
+  const city = [listing.city, listing.region, listing.country].filter(Boolean).join(", ");
+
+  const canComplete = booking?.status === 'paid' || booking?.status === 'confirmed' || booking?.status === 'checked_in';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div 
+        className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-ink">Booking Details</h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+            title="Close"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent"></div>
+            <p className="mt-4 text-slate">Loading booking details...</p>
+          </div>
+        ) : (
+          <div className="p-6 space-y-6">
+            {/* Status Badge */}
+            <div className="flex items-center justify-between">
+              <StatusPill status={booking?.status} />
+              <div className="text-sm text-slate">
+                #{booking?.code || booking?.shortId || booking?.id?.slice(-6) || "—"}
+              </div>
+            </div>
+
+            {/* Guest Information */}
+            <div className="bg-slate-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-ink mb-3">Guest Information</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate">Name:</span>
+                  <span className="font-medium text-ink">{guestName}</span>
+                </div>
+                {user.email && (
+                  <div className="flex justify-between">
+                    <span className="text-slate">Email:</span>
+                    <span className="font-medium text-ink">{user.email}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate">Guests:</span>
+                  <span className="font-medium text-ink">{booking?.guests ?? booking?.seats ?? 1}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Listing Information */}
+            <div className="bg-slate-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-ink mb-3">Listing Information</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate">Title:</span>
+                  <span className="font-medium text-ink">{listing.shortDesc || listing.title || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate">Category:</span>
+                  <span className="font-medium text-ink">{listing.category || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate">Scope:</span>
+                  <span className="font-medium text-ink">{listing.scope || "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate">Location:</span>
+                  <span className="font-medium text-ink">{city || "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Booking Details */}
+            <div className="bg-slate-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-ink mb-3">Booking Details</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate">Dates:</span>
+                  <span className="font-medium text-ink">{dateLabel || "—"}</span>
+                </div>
+                {booking?.checkInTime && (
+                  <div className="flex justify-between">
+                    <span className="text-slate">Check-in Time:</span>
+                    <span className="font-medium text-ink">{booking.checkInTime}</span>
+                  </div>
+                )}
+                {booking?.checkOutTime && (
+                  <div className="flex justify-between">
+                    <span className="text-slate">Check-out Time:</span>
+                    <span className="font-medium text-ink">{booking.checkOutTime}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate">Created:</span>
+                  <span className="font-medium text-ink">{fmtDate(booking?.createdAt) || "—"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Information */}
+            <div className="bg-slate-50 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-ink mb-3">Payment Information</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate">Total Amount:</span>
+                  <span className="font-semibold text-ink text-lg">{currency} {fmtMoney(amount)}</span>
+                </div>
+                {booking?.paymentMethod && (
+                  <div className="flex justify-between">
+                    <span className="text-slate">Payment Method:</span>
+                    <span className="font-medium text-ink">{booking.paymentMethod}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t border-slate-200">
+              {canComplete && booking?.status !== 'completed' && (
+                <button
+                  onClick={() => onMarkComplete(booking.id)}
+                  className="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                >
+                  Mark as Completed
+                </button>
+              )}
+              {booking?.status === 'completed' && (
+                <div className="flex-1 bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-lg text-center font-medium border border-emerald-200">
+                  ✓ Booking Completed
+                </div>
+              )}
+              <button
+                onClick={onClose}
+                className="px-6 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

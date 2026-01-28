@@ -176,6 +176,43 @@ function BookingCard({ item, onCancel, onReview, onPay, onViewRefund, isPast }) 
   const isPaid = status === "paid";
   const canReview = (isCompleted || (isPast && isPaid)) && status !== "cancelled" && !isPendingPayment;
 
+  // Calculate review timing information
+  let reviewTimingInfo = null;
+  if (canReview && !reviewed && end) {
+    const now = new Date();
+    const endDate = new Date(end);
+    const daysSinceEnd = (now - endDate) / (1000 * 60 * 60 * 24);
+    
+    // TESTING MODE: Allow reviews immediately for completed bookings
+    // Comment out the date check to bypass the "booking hasn't ended yet" restriction
+    /*
+    if (daysSinceEnd < 0) {
+      // Booking hasn't ended yet
+      reviewTimingInfo = {
+        status: 'not_available',
+        message: 'Review available after booking ends',
+        daysUntilAvailable: Math.ceil(Math.abs(daysSinceEnd))
+      };
+    } else 
+    */
+    if (daysSinceEnd > 90) {
+      // Review period expired
+      reviewTimingInfo = {
+        status: 'expired',
+        message: 'Review period expired',
+        daysExpired: Math.floor(daysSinceEnd - 90)
+      };
+    } else {
+      // Review available
+      const daysRemaining = Math.floor(90 - daysSinceEnd);
+      reviewTimingInfo = {
+        status: 'available',
+        message: `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} left to review`,
+        daysRemaining
+      };
+    }
+  }
+
   const refundCase = item?.refundCase || null;
 
   const handleDownloadQr = async () => {
@@ -407,6 +444,24 @@ function BookingCard({ item, onCancel, onReview, onPay, onViewRefund, isPast }) 
         {!isPast && isPendingPayment ? (
           <div className="mt-3 rounded-xl bg-amber-50/70 ring-1 ring-amber-200 px-3 py-2 text-xs text-amber-800">
             Payment required to confirm your booking. Tap “Pay now” to continue.
+          </div>
+        ) : null}
+
+        {reviewTimingInfo && !reviewed ? (
+          <div className={`mt-3 rounded-xl px-3 py-2 text-xs ${
+            reviewTimingInfo.status === 'available' 
+              ? 'bg-blue-50/70 ring-1 ring-blue-200 text-blue-800'
+              : reviewTimingInfo.status === 'expired'
+              ? 'bg-slate-50/70 ring-1 ring-slate-200 text-slate-600'
+              : 'bg-amber-50/70 ring-1 ring-amber-200 text-amber-800'
+          }`}>
+            {reviewTimingInfo.status === 'available' ? (
+              <span className="font-medium">✨ Review available: {reviewTimingInfo.message}</span>
+            ) : reviewTimingInfo.status === 'expired' ? (
+              <span>⏰ {reviewTimingInfo.message} ({reviewTimingInfo.daysExpired} day{reviewTimingInfo.daysExpired !== 1 ? 's' : ''} ago)</span>
+            ) : (
+              <span>{reviewTimingInfo.message}</span>
+            )}
           </div>
         ) : null}
       </div>

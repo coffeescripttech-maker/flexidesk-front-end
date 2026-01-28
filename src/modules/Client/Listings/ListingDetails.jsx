@@ -1189,6 +1189,8 @@ export default function ListingDetails() {
                   reviews={reviews}
                   rating={effectiveRating}
                   count={effectiveReviewsCount}
+                  onEdit={handleEditReview}
+                  onFlag={handleFlagReview}
                 />
               ) : (
                 <p className="text-sm text-slate">
@@ -2220,7 +2222,7 @@ function Stars({ value }) {
   );
 }
 
-function ReviewsList({ reviews, rating, count }) {
+function ReviewsList({ reviews, rating, count, onEdit, onFlag }) {
   const [sortBy, setSortBy] = useState('recent');
   const [currentPage, setCurrentPage] = useState(1);
   const reviewsPerPage = 6;
@@ -2339,8 +2341,8 @@ function ReviewsList({ reviews, rating, count }) {
             key={review.id} 
             review={review} 
             averageRating={rating} 
-            onEdit={handleEditReview}
-            onFlag={handleFlagReview}
+            onEdit={onEdit}
+            onFlag={onFlag}
           />
         ))}
       </div>

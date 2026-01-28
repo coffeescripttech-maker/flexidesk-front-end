@@ -95,10 +95,16 @@ export default function AdminAnalyticsPage() {
   const [overview, setOverview] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [prescriptive, setPrescriptive] = useState(null);
+  const [demographics, setDemographics] = useState(null);
 
   const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState("30d");
   const [sortBy, setSortBy] = useState("recent");
+  
+  // Enhanced filters
+  const [cityFilter, setCityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [openSheet, setOpenSheet] = useState(false);
   const [active, setActive] = useState(null);
@@ -106,6 +112,10 @@ export default function AdminAnalyticsPage() {
   const [yearUnavailable, setYearUnavailable] = useState(false);
   const [rangeError, setRangeError] = useState("");
   const [prescriptiveUnavailable, setPrescriptiveUnavailable] = useState(false);
+  
+  // Available filter options (will be populated from data)
+  const [availableCities, setAvailableCities] = useState([]);
+  const [availableCategories, setAvailableCategories] = useState([]);
 
   const reload = async (rangeOverride) => {
     const range = rangeOverride || datePreset;
@@ -116,13 +126,20 @@ export default function AdminAnalyticsPage() {
       setRangeError("");
       setPrescriptiveUnavailable(false);
 
+      // Build query params with filters
+      const params = { range };
+      if (cityFilter && cityFilter !== "all") params.city = cityFilter;
+      if (categoryFilter && categoryFilter !== "all") params.category = categoryFilter;
+      if (statusFilter && statusFilter !== "all") params.status = statusFilter;
+
       const requests = [
-        api.get("/admin/analytics/overview", { params: { range } }),
-        api.get("/admin/analytics/forecast", { params: { range } }),
-        api.get("/admin/analytics/prescriptive", { params: { range } }),
+        api.get("/admin/analytics/overview", { params }),
+        api.get("/admin/analytics/forecast", { params }),
+        api.get("/admin/analytics/prescriptive", { params }),
+        api.get("/admin/analytics/demographics", { params }),
       ];
 
-      const [resOverview, resForecast, resPrescriptive] =
+      const [resOverview, resForecast, resPrescriptive, resDemographics] =
         await Promise.allSettled(requests);
 
       const ov =
@@ -133,6 +150,11 @@ export default function AdminAnalyticsPage() {
       const pr =
         resPrescriptive.status === "fulfilled"
           ? resPrescriptive.value?.data
+          : null;
+
+      const dm =
+        resDemographics.status === "fulfilled"
+          ? resDemographics.value?.data?.data
           : null;
 
       const any403 =
@@ -150,6 +172,7 @@ export default function AdminAnalyticsPage() {
 
       setOverview(ov || null);
       setForecast(fc || null);
+      setDemographics(dm || null);
 
       const prescriptiveOk =
         pr &&
@@ -240,7 +263,35 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     reload();
-  }, [datePreset]);
+  }, [datePreset, cityFilter, categoryFilter, statusFilter]);
+
+  // Extract available filter options from data
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        // Fetch all listings to get available cities and categories
+        const response = await api.get("/admin/listings", { 
+          params: { limit: 1000, status: "active" } 
+        });
+        
+        if (response.data?.listings) {
+          const listings = response.data.listings;
+          
+          // Extract unique cities
+          const cities = [...new Set(listings.map(l => l.city).filter(Boolean))];
+          setAvailableCities(cities.sort());
+          
+          // Extract unique categories
+          const categories = [...new Set(listings.map(l => l.category).filter(Boolean))];
+          setAvailableCategories(categories.sort());
+        }
+      } catch (err) {
+        console.error("Failed to fetch filter options:", err);
+      }
+    };
+    
+    fetchFilterOptions();
+  }, []);
 
   const occupancySeries = useMemo(
     () => overview?.occupancySeries || forecast?.occupancySeries || [],
@@ -520,6 +571,44 @@ export default function AdminAnalyticsPage() {
                 </SelectContent>
               </Select>
 
+              <Select value={cityFilter} onValueChange={setCityFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="City filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All cities</SelectItem>
+                  {availableCities.map(city => (
+                    <SelectItem key={city} value={city}>{city}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Category filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All categories</SelectItem>
+                  {availableCategories.map(category => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[170px]">
+                  <SelectValue placeholder="Status filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="checked_in">Checked In</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-[190px]">
                   <SelectValue placeholder="Sort by" />
@@ -533,6 +622,21 @@ export default function AdminAnalyticsPage() {
                   <SelectItem value="deltaDesc">Largest forecast gap</SelectItem>
                 </SelectContent>
               </Select>
+              
+              {(cityFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCityFilter("all");
+                    setCategoryFilter("all");
+                    setStatusFilter("all");
+                  }}
+                  className="text-xs"
+                >
+                  Clear filters
+                </Button>
+              )}
             </div>
 
             {datePreset === "1y" && yearUnavailable ? (
@@ -547,6 +651,27 @@ export default function AdminAnalyticsPage() {
                 {rangeError}
               </div>
             ) : null}
+            
+            {(cityFilter !== "all" || categoryFilter !== "all" || statusFilter !== "all") && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="text-xs text-muted-foreground">Active filters:</span>
+                {cityFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    City: {cityFilter}
+                  </Badge>
+                )}
+                {categoryFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    Category: {categoryFilter}
+                  </Badge>
+                )}
+                {statusFilter !== "all" && (
+                  <Badge variant="secondary" className="text-xs">
+                    Status: {statusFilter}
+                  </Badge>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -569,6 +694,12 @@ export default function AdminAnalyticsPage() {
               className="data-[state=active]:bg-white"
             >
               Prescriptive analytics
+            </TabsTrigger>
+            <TabsTrigger
+              value="demographics"
+              className="data-[state=active]:bg-white"
+            >
+              Demographics
             </TabsTrigger>
           </TabsList>
 
@@ -1105,6 +1236,149 @@ export default function AdminAnalyticsPage() {
                         : String(prescriptiveKpiCards.occLift ?? "-")
                     }
                   />
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="demographics" className="space-y-4">
+            {demographics ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <Kpi
+                    icon={<Users className="h-5 w-5 text-brand" />}
+                    label="Listings with demographics"
+                    value={`${demographics.metrics?.listingsWithDemographics || 0} / ${demographics.metrics?.totalListings || 0}`}
+                  />
+                  <Kpi
+                    icon={<TrendingUp className="h-5 w-5 text-brand" />}
+                    label="Most popular target"
+                    value={demographics.metrics?.mostPopularIdealFor || "None"}
+                  />
+                  <Kpi
+                    icon={<Activity className="h-5 w-5 text-brand" />}
+                    label="Most popular work style"
+                    value={demographics.metrics?.mostPopularWorkStyle || "None"}
+                  />
+                  <Kpi
+                    icon={<BarChart3 className="h-5 w-5 text-brand" />}
+                    label="Top industry"
+                    value={demographics.metrics?.topIndustry || "None"}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Target Audience Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {Object.entries(demographics.bookingsByIdealFor || {})
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 10)
+                          .map(([key, value]) => (
+                            <div key={key} className="flex items-center justify-between">
+                              <span className="text-sm capitalize">{key.replace(/-/g, ' ')}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-brand"
+                                    style={{
+                                      width: `${Math.min(100, (value / Math.max(...Object.values(demographics.bookingsByIdealFor))) * 100)}%`
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm font-semibold w-12 text-right">{value}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Work Style Preferences</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {Object.entries(demographics.bookingsByWorkStyle || {})
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([key, value]) => (
+                            <div key={key} className="flex items-center justify-between">
+                              <span className="text-sm capitalize">{key}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-emerald-500"
+                                    style={{
+                                      width: `${Math.min(100, (value / Math.max(...Object.values(demographics.bookingsByWorkStyle))) * 100)}%`
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm font-semibold w-12 text-right">{value}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {demographics.topIndustries && demographics.topIndustries.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Top Industries</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Industry</TableHead>
+                            <TableHead className="text-right">Listings</TableHead>
+                            <TableHead className="text-right">Bookings</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {demographics.topIndustries.map((industry, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{industry.name}</TableCell>
+                              <TableCell className="text-right">{industry.listingCount}</TableCell>
+                              <TableCell className="text-right">{industry.bookingCount}</TableCell>
+                              <TableCell className="text-right">₱{fmtNumber(industry.revenue)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Revenue by Target Audience</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {Object.entries(demographics.revenueByIdealFor || {})
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 10)
+                        .map(([key, value]) => (
+                          <div key={key} className="flex items-center justify-between">
+                            <span className="text-sm capitalize">{key.replace(/-/g, ' ')}</span>
+                            <span className="text-sm font-semibold">₱{fmtNumber(value)}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center text-slate-500">
+                  No demographics data available
                 </CardContent>
               </Card>
             )}
