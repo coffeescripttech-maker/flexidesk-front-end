@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Upload UI Component Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .test-section {
+      background: white;
+      border-radius: 1rem;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .test-section h2 {
+      color: #667eea;
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+    }
+
+    .test-section h3 {
+      color: #333;
+      margin: 1.5rem 0 1rem;
+      font-size: 1.2rem;
+    }
+
+    .feature-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .feature-list li {
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: #10b981;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 24px;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .demo-area {
+      background: #f8f9fa;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 1rem 0;
+    }
+
+    .upload-zone {
+      border: 2px dashed #cbd5e0;
+      border-radius: 0.75rem;
+      padding: 3rem;
+      text-align: center;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .upload-zone:hover {
+      border-color: #667eea;
+      background: #f7fafc;
+      transform: scale(1.02);
+    }
+
+    .upload-zone.drag-active {
+      border-color: #667eea;
+      background: #eef2ff;
+      transform: scale(1.02);
+    }
+
+    .upload-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .photo-item {
+      aspect-ratio: 1;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      position: relative;
+      background: #e2e8f0;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .photo-item:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .photo-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .photo-item .remove-btn {
+      position: absolute;
+      top: 0.25rem;
+      right: 0.25rem;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .photo-item:hover .remove-btn {
+      opacity: 1;
+    }
+
+    .lightbox {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.95);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lightbox.active {
+      display: flex;
+    }
+
+    .lightbox-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      position: relative;
+    }
+
+    .lightbox-content img {
+      max-width: 100%;
+      max-height: 90vh;
+      object-fit: contain;
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .lightbox-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .lightbox-nav.prev {
+      left: 1rem;
+    }
+
+    .lightbox-nav.next {
+      right: 1rem;
+    }
+
+    .lightbox-counter {
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 2rem;
+    }
+
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: #10b981;
+      color: white;
+      border-radius: 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 1rem 0;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea, #764ba2);
+      transition: width 0.3s;
+    }
+
+    @media (max-width: 768px) {
+      .photo-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📸 Photo Upload UI Component</h1>
+      <p>Interactive test for photo upload, lightbox, and review display</p>
+    </div>
+
+    <!-- Test 1: PhotoUpload Component -->
+    <div class="test-section">
+      <h2>1. PhotoUpload Component <span class="badge">✓ Implemented</span></h2>
+      <p>Drag-and-drop photo upload with validation and progress</p>
+
+      <div class="demo-area">
+        <h3>Demo: Upload Photos</h3>
+        <div id="photoGrid" class="photo-grid"></div>
+        <div id="uploadZone" class="upload-zone">
+          <div class="upload-icon">📤</div>
+          <p><strong>Click to upload or drag and drop</strong></p>
+          <p style="color: #64748b; font-size: 0.875rem; margin-top: 0.5rem;">
+            JPG, PNG or WEBP (max 5MB each, up to 5 photos)
+          </p>
+          <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+        </div>
+        <div id="progressContainer" style="display: none;">
+          <p style="margin-top: 1rem; color: #64748b;">Uploading...</p>
+          <div class="progress-bar">
+            <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+          </div>
+        </div>
+        <p id="photoCount" style="margin-top: 1rem; color: #64748b; text-align: center;">0/5 photos</p>
+      </div>
+
+      <h3>Features Implemented:</h3>
+      <ul class="feature-list">
+        <li>Drag-and-drop functionality with visual feedback</li>
+        <li>Click-to-upload button</li>
+        <li>Photo previews before submission</li>
+        <li>Remove photo button (hover to see)</li>
+        <li>Upload progress indicator</li>
+        <li>File validation (size, format, count)</li>
+        <li>Error display for invalid files</li>
+      </ul>
+    </div>
+
+    <!-- Test 2: PhotoLightbox Component -->
+    <div class="test-section">
+      <h2>2. PhotoLightbox Component <span class="badge">✓ Implemented</span></h2>
+      <p>Full-screen photo viewer with navigation</p>
+
+      <div class="demo-area">
+        <h3>Demo: Click any photo to open lightbox</h3>
+        <div class="photo-grid">
+          <div class="photo-item" onclick="openLightbox(0)">
+            <img src="https://images.unsplash.com/photo-1497366216548-37526070297c?w=400" alt="Office 1">
+          </div>
+          <div class="photo-item" onclick="openLightbox(1)">
+            <img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400" alt="Office 2">
+          </div>
+          <div class="photo-item" onclick="openLightbox(2)">
+            <img src="https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=400" alt="Office 3">
+          </div>
+        </div>
+      </div>
+
+      <h3>Features Implemented:</h3>
+      <ul class="feature-list">
+        <li>Full-size photo viewing</li>
+        <li>Previous/Next navigation buttons</li>
+        <li>Keyboard navigation (Arrow keys, Escape)</li>
+        <li>Photo counter (X / Y)</li>
+        <li>Thumbnail strip at bottom</li>
+        <li>Close button</li>
+        <li>Dark overlay background</li>
+      </ul>
+    </div>
+
+    <!-- Test 3: Integration -->
+    <div class="test-section">
+      <h2>3. ReviewModal Integration <span class="badge">✓ Implemented</span></h2>
+      <p>Photo upload integrated into review submission</p>
+
+      <h3>Code Example:</h3>
+      <div class="code-block">
+&lt;PhotoUpload
+  photos={photos}
+  onChange={(updatedPhotos, errors) => {
+    setPhotos(updatedPhotos);
+    setError(errors);
+  }}
+  disabled={submitting}
+  maxPhotos={5}
+  error={errors.photos}
+/&gt;
+      </div>
+
+      <h3>Features Implemented:</h3>
+      <ul class="feature-list">
+        <li>PhotoUpload component integrated into ReviewModal</li>
+        <li>Photo selection handled correctly</li>
+        <li>Photos uploaded on review submission</li>
+        <li>Upload errors displayed to user</li>
+        <li>Photo count displayed (X/5 photos)</li>
+        <li>Form validation includes photo validation</li>
+      </ul>
+    </div>
+
+    <!-- Test 4: Review Card Display -->
+    <div class="test-section">
+      <h2>4. Review Card Photo Display <span class="badge">✓ Implemented</span></h2>
+      <p>Photos displayed in review cards with lightbox</p>
+
+      <h3>Features Implemented:</h3>
+      <ul class="feature-list">
+        <li>Photo thumbnails shown in ReviewCard (3x3 grid)</li>
+        <li>Photos clickable to open lightbox</li>
+        <li>"+N" indicator for additional photos</li>
+        <li>Hover effect on photo thumbnails</li>
+        <li>Missing photos handled gracefully</li>
+        <li>Responsive layout for mobile</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div id="lightbox" class="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">×</button>
+    <div class="lightbox-counter" id="lightboxCounter">1 / 3</div>
+    <button class="lightbox-nav prev" onclick="prevPhoto()">‹</button>
+    <div class="lightbox-content">
+      <img id="lightboxImage" src="" alt="Full size photo">
+    </div>
+    <button class="lightbox-nav next" onclick="nextPhoto()">›</button>
+  </div>
+
+  <script>
+    const demoPhotos = [
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800',
+      'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=800',
+      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800'
+    ];
+
+    let currentLightboxIndex = 0;
+    let uploadedPhotos = [];
+
+    // Upload Zone
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput = document.getElementById('fileInput');
+    const photoGrid = document.getElementById('photoGrid');
+    const photoCount = document.getElementById('photoCount');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressFill = document.getElementById('progressFill');
+
+    uploadZone.addEventListener('click', () => fileInput.click());
+
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('drag-active');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('drag-active');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-active');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+      if (uploadedPhotos.length >= 5) {
+        alert('Maximum 5 photos allowed');
+        return;
+      }
+
+      const validFiles = Array.from(files).filter(file => {
+        if (file.size > 5 * 1024 * 1024) {
+          alert(`${file.name} exceeds 5MB limit`);
+          return false;
+        }
+        if (!file.type.startsWith('image/')) {
+          alert(`${file.name} is not an image`);
+          return false;
+        }
+        return true;
+      });
+
+      validFiles.forEach((file, index) => {
+        if (uploadedPhotos.length >= 5) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          uploadedPhotos.push(e.target.result);
+          simulateUpload(() => {
+            renderPhotos();
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function simulateUpload(callback) {
+      progressContainer.style.display = 'block';
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        progressFill.style.width = progress + '%';
+        if (progress >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            progressContainer.style.display = 'none';
+            progressFill.style.width = '0%';
+            callback();
+          }, 300);
+        }
+      }, 100);
+    }
+
+    function renderPhotos() {
+      photoGrid.innerHTML = uploadedPhotos.map((photo, index) => `
+        <div class="photo-item">
+          <img src="${photo}" alt="Photo ${index + 1}">
+          <button class="remove-btn" onclick="removePhoto(${index})">×</button>
+        </div>
+      `).join('');
+      photoCount.textContent = `${uploadedPhotos.length}/5 photos`;
+    }
+
+    function removePhoto(index) {
+      uploadedPhotos.splice(index, 1);
+      renderPhotos();
+    }
+
+    // Lightbox
+    function openLightbox(index) {
+      currentLightboxIndex = index;
+      updateLightbox();
+      document.getElementById('lightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+    }
+
+    function prevPhoto() {
+      currentLightboxIndex = (currentLightboxIndex - 1 + demoPhotos.length) % demoPhotos.length;
+      updateLightbox();
+    }
+
+    function nextPhoto() {
+      currentLightboxIndex = (currentLightboxIndex + 1) % demoPhotos.length;
+      updateLightbox();
+    }
+
+    function updateLightbox() {
+      document.getElementById('lightboxImage').src = demoPhotos[currentLightboxIndex];
+      document.getElementById('lightboxCounter').textContent = 
+        `${currentLightboxIndex + 1} / ${demoPhotos.length}`;
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      const lightbox = document.getElementById('lightbox');
+      if (!lightbox.classList.contains('active')) return;
+
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') prevPhoto();
+      if (e.key === 'ArrowRight') nextPhoto();
+    });
+
+    console.log('Photo Upload UI Component Test loaded successfully!');
+    console.log('Try uploading photos using drag-and-drop or click to upload');
+    console.log('Click on demo photos to test the lightbox');
+  </script>
+</body>
+</html>
