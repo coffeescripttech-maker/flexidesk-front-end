@@ -317,7 +317,50 @@ export default function ListingDetails() {
   const [policyLoading, setPolicyLoading] = useState(true);
   const [policyAcknowledged, setPolicyAcknowledged] = useState(false);
 
+  // Time validation state
+  const [timeValidationError, setTimeValidationError] = useState("");
+
   const todayStr = todayISO();
+
+  // Validate time inputs
+  useEffect(() => {
+    if (!checkInTime && !checkOutTime) {
+      setTimeValidationError("");
+      return;
+    }
+
+    if (checkInTime && !checkOutTime) {
+      setTimeValidationError("Please select Time out");
+      return;
+    }
+
+    if (!checkInTime && checkOutTime) {
+      setTimeValidationError("Please select Time in");
+      return;
+    }
+
+    // Both times are set, validate order
+    if (checkInTime && checkOutTime) {
+      const [inH, inM] = checkInTime.split(":").map(Number);
+      const [outH, outM] = checkOutTime.split(":").map(Number);
+      const inMinutes = inH * 60 + inM;
+      const outMinutes = outH * 60 + outM;
+
+      if (outMinutes <= inMinutes) {
+        setTimeValidationError("Time out must be after Time in");
+        return;
+      }
+
+      // Check minimum duration (e.g., 1 hour)
+      const durationMinutes = outMinutes - inMinutes;
+      if (durationMinutes < 60) {
+        setTimeValidationError("Minimum booking duration is 1 hour");
+        return;
+      }
+
+      setTimeValidationError("");
+    }
+  }, [checkInTime, checkOutTime]);
 
   function showToast(msg, tone = "success") {
     setToast({ open: true, tone, msg });
@@ -977,7 +1020,8 @@ export default function ListingDetails() {
     !checkInTime ||
     !checkOutTime ||
     availabilityChecking ||
-    hasConflict;
+    hasConflict ||
+    !!timeValidationError; // Disable if there's a validation error
 
   return (
     <PageShell>
@@ -1345,6 +1389,14 @@ export default function ListingDetails() {
                   />
                 </label>
 
+                {/* Time Validation Error */}
+                {timeValidationError && (
+                  <div className="col-span-2 text-xs text-rose-700 p-2 rounded-lg bg-rose-50 border border-rose-200 flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>{timeValidationError}</span>
+                  </div>
+                )}
+
                 {/* Availability Status Message */}
                 {checkInTime && checkOutTime && startDate && (
                   <div className="col-span-2">
@@ -1426,6 +1478,8 @@ export default function ListingDetails() {
                   ? "Processing…"
                   : availabilityChecking
                   ? "Checking availability…"
+                  : timeValidationError
+                  ? "Fix time validation"
                   : hasConflict
                   ? "Slot unavailable"
                   : cancellationPolicy?.allowCancellation && !policyAcknowledged
@@ -1618,6 +1672,8 @@ export default function ListingDetails() {
           onSelect={handleRangeSelect}
           onClear={() => handleRangeSelect(null)}
           onClose={() => setDatePickerOpen(false)}
+          setCheckInTime={setCheckInTime}
+          setCheckOutTime={setCheckOutTime}
         />
       )}
 
@@ -1888,6 +1944,8 @@ function DateRangeDropdown({
   onClear,
   onClose,
   listingId,
+  setCheckInTime,
+  setCheckOutTime,
 }) {
   const [busySlots, setBusySlots] = useState({});
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -1991,10 +2049,10 @@ function DateRangeDropdown({
   };
 
   return (
-    <div className="fixed z-40 top-24 left-1/2 -translate-x-1/2 w-[min(95vw,800px)] px-2 max-h-[calc(100vh-7rem)]">
-      <div className="rounded-2xl bg-white shadow-2xl border border-slate-200 max-h-full flex flex-col">
+    <div className="fixed z-40 top-24 left-1/2 -translate-x-1/2 w-[min(95vw,800px)] px-2 h-[calc(100vh-7rem)]">
+      <div className="rounded-2xl bg-white shadow-2xl border border-slate-200 h-full flex flex-col overflow-hidden">
         {/* Fixed Header */}
-        <div className="flex items-start justify-between gap-3 p-4 md:p-6 pb-3 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-3 p-4 md:p-6 pb-3 border-b border-slate-100 flex-shrink-0">
           <div>
             <h3 className="text-lg font-semibold text-ink">Select dates</h3>
             <p className="text-xs md:text-sm text-slate">
@@ -2007,7 +2065,7 @@ function DateRangeDropdown({
         </div>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto px-4 md:px-6 py-4">{/* Content wrapper */}
+        <div className="overflow-y-auto flex-1 px-4 md:px-6 py-4 min-h-0">{/* Content wrapper */}
 
         <div className="mb-4 grid grid-cols-2 gap-3 max-w-sm">
           <div className="border rounded-lg px-3 py-2 bg-slate-50/70">
@@ -2106,17 +2164,25 @@ function DateRangeDropdown({
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {selectedDateInfo.availableSlots.map((slot, idx) => (
-                    <div
+                    <button
                       key={idx}
-                      className="px-3 py-2 rounded-lg bg-white border border-emerald-300 text-center"
+                      type="button"
+                      onClick={() => {
+                        // Auto-fill the time fields when clicking a slot
+                        setCheckInTime(slot.start);
+                        setCheckOutTime(slot.end);
+                        // Close the modal after selection
+                        setShowDatePicker(false);
+                      }}
+                      className="px-3 py-2 rounded-lg bg-white border border-emerald-300 text-center hover:bg-emerald-50 hover:border-emerald-400 transition-colors cursor-pointer"
                     >
                       <div className="text-xs font-medium text-emerald-900">
                         {slot.label}
                       </div>
                       <div className="text-[10px] text-emerald-600 mt-0.5">
-                        Available
+                        Click to select
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
                 <div className="mt-3 text-xs text-emerald-700 flex items-center gap-1">
@@ -2189,7 +2255,7 @@ function DateRangeDropdown({
         </div>
 
         {/* Fixed Footer */}
-        <div className="border-t border-slate-100 p-4 md:p-6 pt-3 flex items-center justify-between text-xs md:text-sm bg-slate-50/50">
+        <div className="border-t border-slate-100 p-4 md:p-6 pt-3 flex items-center justify-between text-xs md:text-sm bg-slate-50/50 flex-shrink-0">
           <button type="button" onClick={onClear} className="underline text-slate hover:text-ink">
             Clear dates
           </button>
