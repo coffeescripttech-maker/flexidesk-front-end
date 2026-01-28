@@ -9,7 +9,7 @@ const api = axios.create({
   baseURL:
     import.meta.env.MODE === "development"
       ? "http://localhost:4000/api"
-      : "https://flexidesk-api-0yb4.onrender.com/api",
+      : "https://flexidesk-api-rl3u.onrender.com/api",
   withCredentials: true,
 });
 
