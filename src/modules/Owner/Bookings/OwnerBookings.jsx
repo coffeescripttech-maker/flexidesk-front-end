@@ -26,6 +26,7 @@ export default function OwnerBookings() {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
+  const [statusChangeLoading, setStatusChangeLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -65,6 +66,40 @@ export default function OwnerBookings() {
     } catch (e) {
       const msg = e?.response?.data?.message || e.message || 'Failed to mark booking as completed';
       alert(msg);
+    }
+  };
+
+  const handleStatusChange = async (bookingId, newStatus) => {
+    const statusLabels = {
+      pending_payment: 'Pending Payment',
+      paid: 'Paid',
+      awaiting_payment: 'Awaiting Payment',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+    };
+
+    const confirmMsg = `Change booking status to "${statusLabels[newStatus] || newStatus}"?`;
+    
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+
+    setStatusChangeLoading(true);
+    try {
+      await api.patch(`/owner/bookings/${bookingId}/status`, { status: newStatus });
+      
+      // Refresh the list and update modal
+      setRefreshKey(k => k + 1);
+      if (selectedBooking) {
+        setSelectedBooking(prev => ({ ...prev, status: newStatus }));
+      }
+      
+      alert(`Booking status changed to ${statusLabels[newStatus] || newStatus}!`);
+    } catch (e) {
+      const msg = e?.response?.data?.message || e.message || 'Failed to change booking status';
+      alert(msg);
+    } finally {
+      setStatusChangeLoading(false);
     }
   };
 
@@ -191,12 +226,11 @@ export default function OwnerBookings() {
         <div className="flex flex-wrap items-center gap-2">
           {[
             ["all", "All"],
-            ["pending", "Pending"],
-            ["confirmed", "Confirmed"],
-            ["checked_in", "Checked in"],
+            ["pending_payment", "Pending Payment"],
+            ["awaiting_payment", "Awaiting Payment"],
+            ["paid", "Paid"],
             ["completed", "Completed"],
             ["cancelled", "Cancelled"],
-            ["refunded", "Refunded"],
           ].map(([val, label]) => (
             <button
               key={val}
@@ -293,8 +327,10 @@ export default function OwnerBookings() {
         <BookingDetailsModal
           booking={selectedBooking}
           loading={modalLoading}
+          statusChangeLoading={statusChangeLoading}
           onClose={closeModal}
           onMarkComplete={handleMarkComplete}
+          onStatusChange={handleStatusChange}
         />
       )}
     </OwnerShell>
@@ -327,12 +363,11 @@ function Th({ children, className = "" }) {
 function StatusPill({ status }) {
   const norm = (status || "").toLowerCase();
   const map = {
-    pending: ["Pending", "bg-amber-100 text-amber-800 ring-amber-200"],
-    confirmed: ["Confirmed", "bg-blue-100 text-blue-800 ring-blue-200"],
-    checked_in: ["Checked in", "bg-indigo-100 text-indigo-800 ring-indigo-200"],
+    pending_payment: ["Pending Payment", "bg-amber-100 text-amber-800 ring-amber-200"],
+    awaiting_payment: ["Awaiting Payment", "bg-orange-100 text-orange-800 ring-orange-200"],
+    paid: ["Paid", "bg-blue-100 text-blue-800 ring-blue-200"],
     completed: ["Completed", "bg-emerald-100 text-emerald-800 ring-emerald-200"],
     cancelled: ["Cancelled", "bg-rose-100 text-rose-800 ring-rose-200"],
-    refunded: ["Refunded", "bg-slate-100 text-slate-700 ring-slate-200"],
   };
   const [text, tone] = map[norm] || [status || "Unknown", "bg-slate-100 text-slate-700 ring-slate-200"];
   return <span className={`inline-flex text-xs px-2 py-0.5 rounded-full ring-1 ${tone}`}>{text}</span>;
@@ -480,7 +515,7 @@ function getGuestName(b) {
   );
 }
 
-function BookingDetailsModal({ booking, loading, onClose, onMarkComplete }) {
+function BookingDetailsModal({ booking, loading, statusChangeLoading, onClose, onMarkComplete, onStatusChange }) {
   if (!booking && !loading) return null;
 
   const listing = booking?.listing || booking?.listingRef || {};
@@ -498,6 +533,26 @@ function BookingDetailsModal({ booking, loading, onClose, onMarkComplete }) {
   const city = [listing.city, listing.region, listing.country].filter(Boolean).join(", ");
 
   const canComplete = booking?.status === 'paid' || booking?.status === 'confirmed' || booking?.status === 'checked_in';
+  const currentStatus = booking?.status || 'pending';
+
+  // Available status transitions based on current status
+  const getAvailableStatuses = (current) => {
+    const statuses = {
+      paid: ['completed', 'cancelled'], // Paid bookings can be completed or cancelled
+      pending_payment: ['cancelled'], // Pending payment can only be cancelled
+      awaiting_payment: ['cancelled'], // Awaiting payment can only be cancelled
+      completed: [], // Cannot change from completed
+      cancelled: [], // Cannot change from cancelled
+    };
+    return statuses[current] || [];
+  };
+
+  const availableStatuses = getAvailableStatuses(currentStatus);
+
+  const statusOptions = [
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -526,13 +581,63 @@ function BookingDetailsModal({ booking, loading, onClose, onMarkComplete }) {
           </div>
         ) : (
           <div className="p-6 space-y-6">
-            {/* Status Badge */}
-            <div className="flex items-center justify-between">
-              <StatusPill status={booking?.status} />
+            {/* Status Badge and Change Status */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate">Current Status:</span>
+                <StatusPill status={booking?.status} />
+              </div>
               <div className="text-sm text-slate">
                 #{booking?.code || booking?.shortId || booking?.id?.slice(-6) || "—"}
               </div>
             </div>
+
+            {/* Status Change Section */}
+            {availableStatuses.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-ink mb-3">Change Booking Status</h3>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm text-slate">Change to:</label>
+                  <select
+                    className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        onStatusChange(booking.id, e.target.value);
+                        e.target.value = ''; // Reset selection
+                      }
+                    }}
+                    disabled={statusChangeLoading}
+                  >
+                    <option value="">Select new status...</option>
+                    {statusOptions
+                      .filter(opt => availableStatuses.includes(opt.value))
+                      .map(opt => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))
+                    }
+                  </select>
+                  {statusChangeLoading && (
+                    <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-current border-r-transparent"></div>
+                  )}
+                </div>
+                <p className="text-xs text-slate mt-2">
+                  {currentStatus === 'paid' && 'Mark the booking as completed when the guest checks out, or cancel it.'}
+                  {currentStatus === 'pending_payment' && 'This booking is awaiting payment and can only be cancelled.'}
+                  {currentStatus === 'awaiting_payment' && 'This booking is awaiting payment and can only be cancelled.'}
+                </p>
+              </div>
+            )}
+
+            {(currentStatus === 'completed' || currentStatus === 'cancelled') && (
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-center">
+                <p className="text-sm text-slate">
+                  This booking is {currentStatus} and cannot be changed.
+                </p>
+              </div>
+            )}
 
             {/* Guest Information */}
             <div className="bg-slate-50 rounded-lg p-4">
@@ -624,22 +729,9 @@ function BookingDetailsModal({ booking, loading, onClose, onMarkComplete }) {
 
             {/* Actions */}
             <div className="flex gap-3 pt-4 border-t border-slate-200">
-              {canComplete && booking?.status !== 'completed' && (
-                <button
-                  onClick={() => onMarkComplete(booking.id)}
-                  className="flex-1 bg-emerald-600 text-white px-4 py-2.5 rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                >
-                  Mark as Completed
-                </button>
-              )}
-              {booking?.status === 'completed' && (
-                <div className="flex-1 bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-lg text-center font-medium border border-emerald-200">
-                  ✓ Booking Completed
-                </div>
-              )}
               <button
                 onClick={onClose}
-                className="px-6 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors font-medium"
+                className="flex-1 px-6 py-2.5 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors font-medium"
               >
                 Close
               </button>

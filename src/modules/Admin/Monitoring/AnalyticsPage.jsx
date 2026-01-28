@@ -97,7 +97,6 @@ export default function AdminAnalyticsPage() {
   const [prescriptive, setPrescriptive] = useState(null);
   const [demographics, setDemographics] = useState(null);
 
-  const [search, setSearch] = useState("");
   const [datePreset, setDatePreset] = useState("30d");
   const [sortBy, setSortBy] = useState("recent");
   
@@ -436,15 +435,6 @@ export default function AdminAnalyticsPage() {
 
   const filteredRows = useMemo(() => {
     let list = [...rows];
-    const q = search.trim().toLowerCase();
-
-    if (q) {
-      list = list.filter(
-        (r) =>
-          String(r.label ?? "").toLowerCase().includes(q) ||
-          String(r.id).toLowerCase().includes(q)
-      );
-    }
 
     switch (sortBy) {
       case "occDesc":
@@ -461,7 +451,7 @@ export default function AdminAnalyticsPage() {
     }
 
     return list;
-  }, [rows, search, sortBy]);
+  }, [rows, sortBy]);
 
   const exportCSV = () => {
     const headers = [
@@ -550,16 +540,6 @@ export default function AdminAnalyticsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-2">
-              <div className="relative w-full md:w-64">
-                <Input
-                  placeholder="Search day…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-                <BarChart3 className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              </div>
-
               <Select value={datePreset} onValueChange={setDatePreset}>
                 <SelectTrigger className="w-[170px]">
                   <SelectValue placeholder="Time filter" />
