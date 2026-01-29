@@ -34,6 +34,7 @@ import OwnerListingManage from "./modules/Owner/Listing/OwnerListingManage";
 import AdminDisputesPage from "./modules/Admin/Disputes/DisputesPage";
 import AdminRefundIssuesPage from "./modules/Admin/Disputes/RefundsPage";
 import AdminPolicyViolationsPage from "./modules/Admin/Disputes/ViolationsPage";
+import AdminCancellationsPage from "./modules/Admin/Disputes/CancellationsPage";
 import AdminChatCenter from "./modules/Admin/Chat/ChatCenter";
 import AdminPaymentsPage from "./modules/Admin/Payments/PaymentsPage";
 import AdminWorkspacePerformancePage from "./modules/Admin/Monitoring/WorkspacePerformancePage";
@@ -133,6 +134,7 @@ const router = createBrowserRouter([
       { path: "bookings", element: <AdminBookingsPage /> },
       { path: "disputes", element: <AdminDisputesPage /> },
       { path: "disputes/refunds", element: <AdminRefundIssuesPage /> },
+      { path: "disputes/cancellations", element: <AdminCancellationsPage /> },
       { path: "disputes/policy-violations", element: <AdminPolicyViolationsPage /> },
       { path: "payouts", element: <AdminPaymentsPage /> },
       { path: "reports/performance", element: <AdminWorkspacePerformancePage /> },
