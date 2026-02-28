@@ -1,5 +1,9 @@
-import api, { USER_TOKEN_KEY, CURRENT_KEY } from "@/services/api";
+import api from "@/services/api";
+import { saveTokens, clearTokens } from "@/services/api";
 
+const USER_TOKEN_KEY = "flexidesk_user_token";
+const REFRESH_TOKEN_KEY = "flexidesk_refresh_token";
+const CURRENT_KEY = "flexidesk_current_user_email";
 const USER_PROFILE_KEY = "flexidesk_current_user";
 
 function saveToStorage(key, value, remember = true) {
@@ -24,9 +28,9 @@ function loadFromEither(key) {
   }
 }
 
-function saveToken(token, remember = true) {
+function saveToken(token, refreshToken, remember = true) {
   if (!token) throw new Error("Missing token in auth response");
-  saveToStorage(USER_TOKEN_KEY, token, remember);
+  saveTokens(token, refreshToken);
 }
 
 function saveProfile(user, remember = true) {
@@ -55,7 +59,7 @@ export async function registerUser({
     role,
   });
   if (data?.token) {
-    saveToken(data.token, remember);
+    saveToken(data.token, data.refreshToken, remember);
     saveProfile(data.user, remember);
   }
   return data.user || null;
@@ -64,7 +68,7 @@ export async function registerUser({
 export async function loginUser({ email, password, remember = true }) {
   const { data } = await api.post("/auth/login", { email, password });
   if (!data?.token) throw new Error(data?.message || "Login failed: missing token");
-  saveToken(data.token, remember);
+  saveToken(data.token, data.refreshToken, remember);
   saveProfile(data.user || { email }, remember);
   return data.user;
 }
@@ -88,7 +92,7 @@ export function isLoggedIn() {
 }
 
 export async function logoutUser() {
-  removeFromBoth(USER_TOKEN_KEY);
+  clearTokens();
   removeFromBoth(CURRENT_KEY);
   removeFromBoth(USER_PROFILE_KEY);
   return true;
@@ -101,7 +105,7 @@ export async function signInWithGoogle() {
 export async function verifyOtp({ email, code, remember = true }) {
   const { data } = await api.post("/auth/verify-otp", { email, code });
   if (data?.token) {
-    saveToken(data.token, remember);
+    saveToken(data.token, data.refreshToken, remember);
     saveProfile(data.user || { email }, remember);
   }
   return data;
