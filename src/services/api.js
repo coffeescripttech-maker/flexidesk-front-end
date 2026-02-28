@@ -5,9 +5,10 @@ const api = axios.create({
   withCredentials: true,
 });
 
-const USER_TOKEN_KEY = 'flexidesk_user_token';
-const REFRESH_TOKEN_KEY = 'flexidesk_refresh_token';
-const ADMIN_TOKEN_KEY = 'flexidesk_admin_token';
+export const USER_TOKEN_KEY = 'flexidesk_user_token';
+export const REFRESH_TOKEN_KEY = 'flexidesk_refresh_token';
+export const ADMIN_TOKEN_KEY = 'flexidesk_admin_token';
+export const CURRENT_KEY = 'flexidesk_current_user_email';
 
 // Helper to get stored token
 function getStoredToken() {
@@ -43,8 +44,10 @@ export function saveTokens(accessToken, refreshToken) {
 export function clearTokens() {
   localStorage.removeItem(USER_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
   sessionStorage.removeItem(USER_TOKEN_KEY);
   sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 // Request interceptor to add token

@@ -1,9 +1,19 @@
 // src/services/adminAuth.js
-import api, { ADMIN_TOKEN_KEY, CURRENT_KEY } from "@/services/api";
+import api from "@/services/api";
+import { saveTokens, clearTokens } from "@/services/api";
 
-function storeToken(token, remember) {
-  const store = remember ? localStorage : sessionStorage;
-  store.setItem(ADMIN_TOKEN_KEY, token);
+export const ADMIN_TOKEN_KEY = 'flexidesk_admin_token';
+export const ADMIN_REFRESH_TOKEN_KEY = 'flexidesk_admin_refresh_token';
+export const CURRENT_KEY = 'flexidesk_current_user_email';
+
+function storeToken(token, refreshToken, remember) {
+  if (token) {
+    const store = remember ? localStorage : sessionStorage;
+    store.setItem(ADMIN_TOKEN_KEY, token);
+    if (refreshToken) {
+      store.setItem(ADMIN_REFRESH_TOKEN_KEY, refreshToken);
+    }
+  }
 }
 
 /**
@@ -18,7 +28,7 @@ export function getAdminToken() {
 }
 
 /**
- * Convenience helper if you need to show who’s logged in.
+ * Convenience helper if you need to show who's logged in.
  */
 export function getCurrentAdminEmail() {
   return (
@@ -40,7 +50,7 @@ export async function loginAdmin({ email, password, remember }) {
   }
 
   // Keep a copy client-side for Authorization header (server may also set httpOnly cookie).
-  storeToken(data.token, remember);
+  storeToken(data.token, data.refreshToken, remember);
 
   // Track current email alongside the token in the same storage bucket.
   if (data.user.email) {
@@ -62,8 +72,11 @@ export async function logoutAdmin() {
   } catch {
     // ignore network errors on logout
   }
+  clearTokens();
   localStorage.removeItem(ADMIN_TOKEN_KEY);
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+  sessionStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
   localStorage.removeItem(CURRENT_KEY);
   sessionStorage.removeItem(CURRENT_KEY);
 }
